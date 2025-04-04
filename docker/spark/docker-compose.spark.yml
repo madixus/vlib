@@ -6,8 +6,9 @@ services:
     environment:
       - SPARK_MODE=master
     ports:
-      - "8080:8080"  # Spark Master Web UI
-      - "7077:7077"  # Port RPC pour cluster
+      - "8085:8080"  # Spark Master Web UI → changé ici
+      - "7077:7077"
+
 
   spark-worker:
     image: bitnami/spark
