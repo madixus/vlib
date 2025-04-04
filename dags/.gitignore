@@ -1,0 +1,12 @@
+# .gitignore
+.env
+*.pyc
+__pycache__/
+*.log
+logs/
+airflow/logs/
+hadoop/tmp/
+*.jar
+*.swp
+.idea/
+.vscode/

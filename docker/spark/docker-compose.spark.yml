@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  spark-master:
+    image: bitnami/spark
+    environment:
+      - SPARK_MODE=master
+    ports:
+      - "8080:8080"  # Spark Master Web UI
+      - "7077:7077"  # Port RPC pour cluster
+
+  spark-worker:
+    image: bitnami/spark
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_PUBLIC_DNS=localhost
+    ports:
+      - "8083:8081"  # ⚠️ 8083 sur l'hôte → 8081 dans le conteneur (Worker Web UI)
+    depends_on:
+      - spark-master
+    networks:
+      - my-network
+
+networks:
+  my-network:
+    external: true
