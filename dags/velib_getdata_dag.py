@@ -23,7 +23,7 @@ with DAG(
         image='my-spark-custom',
         api_version='auto',
         auto_remove=True,
-        command='spark-submit --master spark://spark-master:7077 /opt/spark-jobs/getData.py',
+        command='spark-submit --master spark://spark-master:7077 /opt/spark-jobs/getDataVelo.py',
         docker_url="tcp://host.docker.internal:2375",  # ✅ Pour Windows avec Docker Desktop (daemon exposé)
         network_mode='my-network',
         mount_tmp_dir=False,
