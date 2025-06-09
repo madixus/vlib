@@ -34,7 +34,7 @@ def test_run_job_success(mock_write, mock_schema, mock_transform, mock_fetch, mo
     )
     mock_write.assert_called_once_with(
         mock_df,
-        "hdfs://namenode:9000/velib/raw/availability_v2"
+        "hdfs://namenode:9000/velib/raw/availability"
     )
     mock_session.stop.assert_called_once()
 
