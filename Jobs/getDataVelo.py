@@ -1,71 +1,63 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType, StringType, IntegerType, LongType, BooleanType, DoubleType
-import requests
+from pyspark.sql import SparkSession # type: ignore
+from pyspark.sql.types import StructType, StringType, IntegerType, BooleanType, DoubleType # type: ignore
+import requests # type: ignore
 from datetime import datetime
 
-# ---------- CONFIGURATION ----------
+
 BASE_URL = "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/velib-disponibilite-en-temps-reel/records"
 LIMIT = 100
 
-# ---------- VELIB FETCH ----------
-def fetch_velib_data():
+
+def fetch_velib_data(base_url=BASE_URL, limit=LIMIT):
     all_records = []
     offset = 0
 
     while True:
-        url = f"{BASE_URL}?limit={LIMIT}&offset={offset}"
-        print(f"Récupération en cours  : {url}")
+        url = f"{base_url}?limit={limit}&offset={offset}"
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
         results = data.get("results", [])
-
         all_records.extend(results)
 
-        if len(results) < LIMIT:
-            break  # fin des données
-        offset += LIMIT
+        if len(results) < limit:
+            break
+        offset += limit
 
-    print(f"Total stations récupérées avec succées: {len(all_records)}")
     return all_records
+
 
 def to_bool(value):
     return str(value).strip().lower() == "oui"
 
-# ---------- TRANSFORMATION ----------
-def transform_velib_data(records):
-    now = datetime.utcnow().isoformat()
-    rows = []
-    for f in records:
-        rows.append({
-            "stationcode": f.get("stationcode"),
-            "name": f.get("name"),
-            "num_bikes_available": f.get("numbikesavailable"),
-            "num_docks_available": f.get("numdocksavailable"),
-            "mechanical": f.get("mechanical"),
-            "ebike": f.get("ebike"),
-            "is_installed": to_bool(f.get("is_installed")),
-            "is_renting": to_bool(f.get("is_renting")),
-            "is_returning": to_bool(f.get("is_returning")),
-            "lon": f.get("coordonnees_geo", {}).get("lon"),
-            "lat": f.get("coordonnees_geo", {}).get("lat"),
-            "last_reported": f.get("duedate"),
-            "arrondissement": f.get("nom_arrondissement_communes"),
-            "timestamp": now
-        })
-    return rows
 
-# ---------- MAIN ----------
-def main():
-    spark = SparkSession.builder.appName("VelibDataIngestionV2").getOrCreate()
-    spark.conf.set("spark.hadoop.dfs.replication", "1")
+def transform_velib_data(records, timestamp=None):
+    if timestamp is None:
+        timestamp = datetime.utcnow().isoformat()
 
-    # Récupération + transformation
-    velib_data = fetch_velib_data()
-    velib_rows = transform_velib_data(velib_data)
+    return [
+        {
+            "stationcode": r.get("stationcode"),
+            "name": r.get("name"),
+            "num_bikes_available": r.get("numbikesavailable"),
+            "num_docks_available": r.get("numdocksavailable"),
+            "mechanical": r.get("mechanical"),
+            "ebike": r.get("ebike"),
+            "is_installed": to_bool(r.get("is_installed")),
+            "is_renting": to_bool(r.get("is_renting")),
+            "is_returning": to_bool(r.get("is_returning")),
+            "lon": r.get("coordonnees_geo", {}).get("lon"),
+            "lat": r.get("coordonnees_geo", {}).get("lat"),
+            "last_reported": r.get("duedate"),
+            "arrondissement": r.get("nom_arrondissement_communes"),
+            "timestamp": timestamp
+        }
+        for r in records
+    ]
 
-    # Schéma
-    velib_schema = StructType() \
+
+def get_velib_schema():
+    return StructType() \
         .add("stationcode", StringType()) \
         .add("name", StringType()) \
         .add("num_bikes_available", IntegerType()) \
@@ -81,12 +73,27 @@ def main():
         .add("arrondissement", StringType()) \
         .add("timestamp", StringType())
 
-    # DataFrame + écriture HDFS
-    velib_df = spark.createDataFrame(velib_rows, schema=velib_schema)
-    velib_df.write.mode("append").parquet("hdfs://namenode:9000/velib/raw/availability_v2")
-    print("🚴 Données Vélib écrites sur HDFS")
 
-    spark.stop()
+def write_to_hdfs(df, path, mode="append"):
+    df.write.mode(mode).parquet(path)
+
+
+def run_job():
+    spark = SparkSession.builder.appName("VelibDataIngestion").getOrCreate()
+    spark.conf.set("spark.hadoop.dfs.replication", "1")
+
+    try:
+        records = fetch_velib_data()
+        rows = transform_velib_data(records)
+        schema = get_velib_schema()
+        df = spark.createDataFrame(rows, schema=schema)
+        write_to_hdfs(df, "hdfs://namenode:9000/velib/raw/availability")
+        print("✅ Données Vélib écrites avec succès dans HDFS.")
+    except Exception as e:
+        print(f"❌ Erreur pendant le job Spark : {e}")
+    finally:
+        spark.stop()
+
 
 if __name__ == "__main__":
-    main()
+    run_job()
