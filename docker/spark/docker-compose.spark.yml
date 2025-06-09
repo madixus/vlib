@@ -1,17 +1,21 @@
+version: '3.8'
+
 services:
   spark-master:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: spark-master
-    hostname: spark-master         # ✅ AJOUT ICI
+    hostname: spark-master         
     environment:
       - SPARK_MODE=master
     ports:
       - "8085:8080"
       - "7077:7077"
     volumes:
-      - /c/Users/USER/Desktop/mspr/vlib/Jobs:/opt/spark-jobs
+      - ${LOCAL_JOBS_PATH}:/opt/spark-jobs
+    env_file:
+      - .env
     networks:
       - my-network
 
@@ -28,6 +32,8 @@ services:
       - "8083:8081"
     depends_on:
       - spark-master
+    env_file:
+      - .env
     networks:
       - my-network
 
