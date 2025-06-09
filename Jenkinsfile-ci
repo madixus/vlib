@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'python:3.10'
-            args '-u root'
-        }
-    }
+    agent any
 
     stages {
         stage('Checkout') {
@@ -13,15 +8,23 @@ pipeline {
             }
         }
 
-        stage('Install dependencies') {
+        stage('Setup Python venv') {
             steps {
-                sh 'pip install --upgrade pip && pip install -r requirements.txt'
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                '''
             }
         }
 
         stage('Run Unit Tests') {
             steps {
-                sh 'pytest Tests/unitaires/ --disable-warnings --maxfail=3'
+                sh '''
+                    . venv/bin/activate
+                    pytest Tests/unitaires/ --disable-warnings --maxfail=3
+                '''
             }
         }
     }
