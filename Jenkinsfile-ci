@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'tests-dev', url: 'https://github.com/madixus/vlib'
+            }
+        }
+
+        stage('Setup Python venv') {
+            steps {
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                '''
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                sh '''
+                    . venv/bin/activate
+                    pytest Tests/unitaires/ --disable-warnings --maxfail=3
+                '''
+            }
+        }
+    }
+
+    post {
+        failure {
+            echo "❌ Échec des tests"
+        }
+        success {
+            echo "✅ Tous les tests sont passés"
+        }
+    }
+}
