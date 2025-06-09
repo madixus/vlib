@@ -5,6 +5,7 @@ pipeline {
             args '-u root'
         }
     }
+
     stages {
         stage('Checkout') {
             steps {
@@ -12,23 +13,15 @@ pipeline {
             }
         }
 
-        stage('Setup Python venv') {
+        stage('Install dependencies') {
             steps {
-                sh '''
-                    python3 -m venv venv
-                    . venv/bin/activate
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
-                '''
+                sh 'pip install --upgrade pip && pip install -r requirements.txt'
             }
         }
 
         stage('Run Unit Tests') {
             steps {
-                sh '''
-                    . venv/bin/activate
-                    pytest Tests/unitaires/ --disable-warnings --maxfail=3
-                '''
+                sh 'pytest Tests/unitaires/ --disable-warnings --maxfail=3'
             }
         }
     }
