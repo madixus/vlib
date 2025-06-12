@@ -23,6 +23,7 @@ pipeline {
             steps {
                 sh '''
                     . venv/bin/activate
+                    export PYTHONPATH=$(pwd)
                     pytest Tests/unitaires/ --disable-warnings --maxfail=3
                 '''
             }
