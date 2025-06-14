@@ -47,7 +47,11 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__WEBSERVER__SECRET_KEY: 6c5e5d219c4d8d8fc26fd4c2b18cdd93c7858a1d4d1b2c20f3154bc4f3813be5
-      _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-docker
+      AIRFLOW__METRICS__STATSD_ON: "true"
+      AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
+      AIRFLOW__METRICS__STATSD_PORT: 9125
+      AIRFLOW__METRICS__STATSD_PREFIX: airflow
+      _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-docker statsd
     command: >
       bash -c "rm -f /opt/airflow/airflow-webserver.pid && airflow webserver"
     volumes:
@@ -68,7 +72,11 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__WEBSERVER__SECRET_KEY: 6c5e5d219c4d8d8fc26fd4c2b18cdd93c7858a1d4d1b2c20f3154bc4f3813be5
-      _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-docker
+      AIRFLOW__METRICS__STATSD_ON: "true"
+      AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
+      AIRFLOW__METRICS__STATSD_PORT: 9125
+      AIRFLOW__METRICS__STATSD_PREFIX: airflow
+      _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-docker statsd
     command: scheduler
     volumes:
       - /c/Users/USER/Desktop/mspr/vlib/Jobs:/opt/spark-jobs
@@ -83,4 +91,3 @@ volumes:
 networks:
   my-network:
     external: true
-    name: my-network
