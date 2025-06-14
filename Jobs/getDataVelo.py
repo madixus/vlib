@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType, StringType, IntegerType, LongType, BooleanType, DoubleType
+from pyspark.sql.types import StructType, StringType, IntegerType, BooleanType, DoubleType
 import requests
 from datetime import datetime
 
@@ -23,10 +23,10 @@ def fetch_velib_data():
         all_records.extend(results)
 
         if len(results) < LIMIT:
-            break  # fin des données
+            break  # Fin des données
         offset += LIMIT
 
-    print(f"Total stations récupérées avec succées: {len(all_records)}")
+    print(f"Total stations récupérées avec succès : {len(all_records)}")
     return all_records
 
 def to_bool(value):
@@ -36,7 +36,12 @@ def to_bool(value):
 def transform_velib_data(records):
     now = datetime.utcnow().isoformat()
     rows = []
+
     for f in records:
+        coords = f.get("coordonnees_geo", [])
+        lon = coords[0] if isinstance(coords, list) and len(coords) > 0 else None
+        lat = coords[1] if isinstance(coords, list) and len(coords) > 1 else None
+
         rows.append({
             "stationcode": f.get("stationcode"),
             "name": f.get("name"),
@@ -47,12 +52,14 @@ def transform_velib_data(records):
             "is_installed": to_bool(f.get("is_installed")),
             "is_renting": to_bool(f.get("is_renting")),
             "is_returning": to_bool(f.get("is_returning")),
-            "lon": f.get("coordonnees_geo", {}).get("lon"),
-            "lat": f.get("coordonnees_geo", {}).get("lat"),
+            "lon": lon,
+            "lat": lat,
             "last_reported": f.get("duedate"),
             "arrondissement": f.get("nom_arrondissement_communes"),
+            "capacity": f.get("capacity"),
             "timestamp": now
         })
+
     return rows
 
 # ---------- MAIN ----------
@@ -60,11 +67,9 @@ def main():
     spark = SparkSession.builder.appName("VelibDataIngestionV2").getOrCreate()
     spark.conf.set("spark.hadoop.dfs.replication", "1")
 
-    # Récupération + transformation
     velib_data = fetch_velib_data()
     velib_rows = transform_velib_data(velib_data)
 
-    # Schéma
     velib_schema = StructType() \
         .add("stationcode", StringType()) \
         .add("name", StringType()) \
@@ -79,12 +84,17 @@ def main():
         .add("lat", DoubleType()) \
         .add("last_reported", StringType()) \
         .add("arrondissement", StringType()) \
+        .add("capacity", IntegerType()) \
         .add("timestamp", StringType())
 
-    # DataFrame + écriture HDFS
     velib_df = spark.createDataFrame(velib_rows, schema=velib_schema)
-    velib_df.write.mode("append").parquet("hdfs://namenode:9000/velib/raw/availability_v2")
-    print("🚴 Données Vélib écrites sur HDFS")
+    
+    print(f"[getDataVelo] Nombre de lignes récupérées : {velib_df.count()}")
+    velib_df.show(5)
+
+    velib_df.write.mode("overwrite").parquet("hdfs://namenode:9000/velib/raw/availability_v2")
+
+    print(" Données de disponibilité écrites dans /velib/raw/availability_v2")
 
     spark.stop()
 

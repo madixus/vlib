@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.providers.docker.operators.docker import DockerOperator
+from airflow.sensors.external_task import ExternalTaskSensor
 from datetime import datetime, timedelta
 
 default_args = {
@@ -10,20 +11,28 @@ default_args = {
 }
 
 with DAG(
-    dag_id='velib_getStation_dag',
+    dag_id='velib_clean_dag',
     default_args=default_args,
-    schedule_interval=None,  # ou '@daily'
+    schedule_interval=None,
     catchup=False,
-    description='DAG qui exécute getStationData.py dans le container Spark',
-    tags=['velib', 'spark', 'docker'],
+    description='Nettoyage après récupération des données',
+    tags=['velib', 'spark'],
 ) as dag:
 
-    run_getstationdata = DockerOperator(
-        task_id='run_spark_getSationData',
+    wait_getdata = ExternalTaskSensor(
+        task_id='wait_getdata',
+        external_dag_id='velib_getdata_dag',
+        external_task_id=None,
+        mode='poke',
+        timeout=600,
+        poke_interval=30
+    )
+
+    run_clean = DockerOperator(
+        task_id='run_spark_clean',
         image='my-spark-custom',
-        api_version='auto',
         auto_remove=True,
-        command='spark-submit --master spark://spark-master:7077 /opt/spark-jobs/getStationData.py',
+        command='spark-submit --master spark://spark-master:7077 /opt/spark-jobs/cleanData.py',
         docker_url="tcp://host.docker.internal:2375",
         network_mode='my-network',
         mount_tmp_dir=False,
@@ -36,4 +45,4 @@ with DAG(
         ]
     )
 
-    run_getstationdata
+    wait_getdata >> run_clean

@@ -1,50 +1,76 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, when, to_timestamp
+from pyspark.sql.functions import col, when, to_timestamp, trim
 
-def main():
-    spark = SparkSession.builder.appName("CleanVelibData").getOrCreate()
+def clean_availability_data(spark):
+    df = spark.read.parquet("hdfs://namenode:9000/velib/raw/availability_v2")
+    print(f"[cleanData] Availability - lignes lues : {df.count()}")
+    df.show(5, truncate=False)
 
-    # ========== 🗂️ LECTURE DES DONNÉES BRUTES ==========
-    availability_df = spark.read.parquet("hdfs://namenode:9000/velib/raw/availability_v2")
-    stations_df = spark.read.parquet("hdfs://namenode:9000/velib/raw/stations")
+    # Nettoyage stationcode
+    df = df.withColumn("stationcode", trim(col("stationcode").cast("string")))
 
-    # ========== 🔗 JOINTURE ==========
-    df = availability_df.join(stations_df, on="stationcode", how="left")
+    # Nettoyage géolocalisation
+    df = df.withColumn("lat", when(col("lat") == "\\N", None).otherwise(col("lat").cast("double")))
+    df = df.withColumn("lon", when(col("lon") == "\\N", None).otherwise(col("lon").cast("double")))
+    print(f"[cleanData] Availability - après cast lat/lon : {df.count()}")
 
-    # ========== 🧹 NETTOYAGE ==========
-    # 1. Supprimer les lignes sans coordonnées
-    df = df.filter(col("lat").isNotNull() & col("lon").isNotNull())
+    # df = df.filter((col("lat").isNotNull()) & (col("lon").isNotNull()))
+    print(f"[cleanData] Availability - après filtre géoloc : {df.count()}")
 
-    # 2. Supprimer les valeurs incohérentes
+    # Filtres numériques
     df = df.filter(
         (col("num_bikes_available") >= 0) &
         (col("num_docks_available") >= 0) &
         (col("mechanical") >= 0) &
         (col("ebike") >= 0)
     )
+    print(f"[cleanData] Availability - après filtres numériques : {df.count()}")
 
-    # 3. Vérifier que mechanical + ebike == total bikes
+    # Vérification cohérence vélos
     df = df.withColumn("bike_check", col("mechanical") + col("ebike"))
     df = df.filter(col("bike_check") == col("num_bikes_available"))
+    print(f"[cleanData] Availability - après vérif cohérence vélo : {df.count()}")
 
-    # 4. Supprimer les stations avec capacity = 0 ou null
-    df = df.filter(col("capacity").isNotNull() & (col("capacity") > 0))
+    # Conversion horodatage
+    df = df.withColumn("event_ts", to_timestamp(col("last_reported"), "yyyy-MM-dd'T'HH:mm:ssXXX"))
+    df.select("last_reported", "event_ts").show(5, truncate=False)
 
-    # 5. Supprimer les doublons (par station et timestamp)
-    df = df.dropDuplicates(["stationcode", "ingestion_ts"])
+    # Déduplication
+    df = df.dropDuplicates(["stationcode", "timestamp"])
+    print(f"[cleanData] Availability - après suppression doublons : {df.count()}")
 
-    # 6. Convertir last_reported en timestamp
-    df = df.withColumn("event_ts", to_timestamp(col("last_reported")))
+    # Sauvegarde
+    df.write.mode("overwrite").parquet("hdfs://namenode:9000/velib/clean/availability")
+    print("[cleanData] Availability - données nettoyées enregistrées")
 
-    # ========== ✨ ENRICHISSEMENT ==========
-    df = df.withColumn("is_full_station", when(col("num_docks_available") == 0, True).otherwise(False))
-    df = df.withColumn("is_empty_station", when(col("num_bikes_available") == 0, True).otherwise(False))
+def clean_station_data(spark):
+    df = spark.read.parquet("hdfs://namenode:9000/velib/raw/stations")
+    print(f"[cleanData] Stations - lignes lues : {df.count()}")
+    df.show(5, truncate=False)
 
-    # ========== 💾 ÉCRITURE ==========
-    df.write.mode("overwrite").parquet("hdfs://namenode:9000/velib/clean/data")
-    print("✅ Données nettoyées et enrichies écrites avec succès !")
+    # Nettoyage stationcode
+    df = df.withColumn("stationcode", trim(col("stationcode").cast("string")))
 
+    # Filtrage géolocalisation
+    df = df.filter((col("lat").isNotNull()) & (col("lon").isNotNull()))
+    print(f"[cleanData] Stations - après filtre géoloc : {df.count()}")
+
+    # Déduplication
+    df = df.dropDuplicates(["stationcode"])
+    print(f"[cleanData] Stations - après suppression doublons : {df.count()}")
+
+    # Sauvegarde
+    df.write.mode("overwrite").parquet("hdfs://namenode:9000/velib/clean/stations")
+    print("[cleanData] Stations - données nettoyées enregistrées")
+
+def main():
+    spark = SparkSession.builder.appName("CleanVelibData").getOrCreate()
+    print("[cleanData] --- Démarrage nettoyage disponibilité ---")
+    clean_availability_data(spark)
+    print("[cleanData] --- Démarrage nettoyage stations ---")
+    clean_station_data(spark)
     spark.stop()
+    print("[cleanData] Nettoyage terminé")
 
 if __name__ == "__main__":
     main()

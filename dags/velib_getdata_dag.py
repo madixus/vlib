@@ -12,7 +12,7 @@ default_args = {
 with DAG(
     dag_id='velib_getdata_dag',
     default_args=default_args,
-    schedule_interval='@hourly',
+    schedule_interval=None,
     catchup=False,
     description='DAG qui exécute getData.py dans le container Spark',
     tags=['velib', 'spark', 'docker'],
@@ -24,12 +24,12 @@ with DAG(
         api_version='auto',
         auto_remove=True,
         command='spark-submit --master spark://spark-master:7077 /opt/spark-jobs/getDataVelo.py',
-        docker_url="tcp://host.docker.internal:2375",  # ✅ Pour Windows avec Docker Desktop (daemon exposé)
+        docker_url="tcp://host.docker.internal:2375",  #  Pour Windows avec Docker Desktop (daemon exposé)
         network_mode='my-network',
         mount_tmp_dir=False,
         mounts=[
             {
-                'source': 'C:/Users/USER/Desktop/mspr/vlib/Jobs',  # 📌 Met ton chemin absolu local ici
+                'source': 'C:/Users/USER/Desktop/mspr/vlib/Jobs',  # Met ton chemin absolu local ici
                 'target': '/opt/spark-jobs',
                 'type': 'bind'
             }
@@ -37,3 +37,4 @@ with DAG(
     )
 
     run_getdata
+    

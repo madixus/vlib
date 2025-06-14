@@ -73,6 +73,7 @@ services:
     volumes:
       - /c/Users/USER/Desktop/mspr/vlib/Jobs:/opt/spark-jobs
       - /c/Users/USER/Desktop/mspr/vlib/dags:/opt/airflow/dags
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - my-network
 
