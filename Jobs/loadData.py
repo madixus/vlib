@@ -1,18 +1,20 @@
+# === loadData.py avec logs ===
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import current_timestamp
 
 def main():
-    spark = SparkSession.builder.appName("LoadVelibFinalData").getOrCreate()
+    spark = SparkSession.builder.appName("LoadVelibData").getOrCreate()
 
-    # Lire les données nettoyées depuis HDFS
-    df = spark.read.parquet("hdfs://namenode:9000/velib/clean/data")
+    # Lire les données agrégées depuis HDFS
+    
+    input_path = "hdfs://namenode:9000/velib/aggregation/data"
+    df = spark.read.parquet(input_path)
+    print(f"[loadData] Données agrégées lues : {df.count()}")
+    df.show(5)
 
-    # Ajouter une colonne de timestamp de chargement (optionnel mais conseillé)
-    df = df.withColumn("load_ts", current_timestamp())
-
-    # Écriture en append pour garder tout l’historique
-    df.write.mode("append").parquet("hdfs://namenode:9000/velib/final/full_history")
-    print("✅ Données chargées dans l'historique final (/final/full_history)")
+    # Écrire les données dans un répertoire "final"
+    output_path = "hdfs://namenode:9000/velib/final/data"
+    df.write.mode("append").parquet(output_path)
+    print("\n✅ Données finales enregistrées dans HDFS.")
 
     spark.stop()
 
