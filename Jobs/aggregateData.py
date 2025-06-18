@@ -1,24 +1,25 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, trim, to_timestamp, row_number
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import col, trim, to_timestamp, row_number, current_timestamp
 from pyspark.sql.window import Window
-from pyspark.sql.functions import current_timestamp
 
-def main():
-    spark = SparkSession.builder.appName("JoinVelibData").getOrCreate()
 
-    # Lecture des données nettoyées
+def read_clean_data(spark: SparkSession) -> tuple[DataFrame, DataFrame]:
     avail_df = spark.read.parquet("hdfs://namenode:9000/velib/clean/availability")
     station_df = spark.read.parquet("hdfs://namenode:9000/velib/clean/stations")
+    return avail_df, station_df
 
-    # Nettoyage des colonnes 'stationcode'
+
+def clean_columns(avail_df: DataFrame, station_df: DataFrame) -> tuple[DataFrame, DataFrame]:
     avail_df = avail_df.withColumn("stationcode", trim(col("stationcode").cast("string")))
     station_df = station_df.withColumn("stationcode", trim(col("stationcode").cast("string")))
 
-    # Conversion des timestamps
     avail_df = avail_df.withColumn("event_ts", to_timestamp("event_ts"))
     station_df = station_df.withColumn("timestamp", to_timestamp("timestamp"))
 
-    # Sélection des colonnes utiles
+    return avail_df, station_df
+
+
+def select_useful_columns(avail_df: DataFrame, station_df: DataFrame) -> tuple[DataFrame, DataFrame]:
     avail_df = avail_df.select(
         "stationcode", "event_ts",
         "num_bikes_available", "num_docks_available",
@@ -31,31 +32,57 @@ def main():
         "stationcode", "timestamp",
         "name", "capacity", "lat", "lon", "station_opening_hours"
     )
+    return avail_df, station_df
 
-    # Récupérer le dernier état connu de chaque station
+
+def get_latest_station_info(station_df: DataFrame) -> DataFrame:
     window_spec = Window.partitionBy("stationcode").orderBy(col("timestamp").desc())
-    station_latest = station_df.withColumn("rn", row_number().over(window_spec))\
-                               .filter(col("rn") == 1)\
-                               .drop("rn", "timestamp")  # on peut drop le timestamp historique
 
-    # Jointure uniquement sur stationcode
-    joined_df = avail_df.join(station_latest, on="stationcode", how="left")
+    station_latest = (
+        station_df.withColumn("rn", row_number().over(window_spec))
+                  .filter(col("rn") == 1)
+                  .drop("rn", "timestamp")
+    )
+    return station_latest
 
-    
+
+def join_and_enrich(avail_df: DataFrame, station_df: DataFrame) -> DataFrame:
+    joined_df = avail_df.join(station_df, on="stationcode", how="left")
     joined_df = joined_df.withColumn("aggregation_timestamp", current_timestamp())
+    return joined_df
+
+
+def write_joined_data(joined_df: DataFrame) -> None:
+    joined_df.write.mode("overwrite").parquet("hdfs://namenode:9000/velib/aggregation/data")
+    print("[joinData] Données enrichies enregistrées en Parquet")
+
+    joined_df.write.mode("overwrite") \
+        .option("header", True) \
+        .csv("hdfs://namenode:9000/velib/aggregation/csvfile")
+    print("[joinData] Données enrichies enregistrées en CSV")
+
+
+def aggregate_data(spark: SparkSession) -> None:
+    avail_df, station_df = read_clean_data(spark)
+
+    avail_df, station_df = clean_columns(avail_df, station_df)
+    avail_df, station_df = select_useful_columns(avail_df, station_df)
+    station_latest = get_latest_station_info(station_df)
+
+    joined_df = join_and_enrich(avail_df, station_latest)
 
     print(f"[joinData] Données jointes : {joined_df.count()}")
     joined_df.show(5, truncate=False)
 
-    # Sauvegarde en Parquet et CSV
-    joined_df.write.mode("overwrite").parquet("hdfs://namenode:9000/velib/aggregation/data")
-    print("[joinData] Données enrichies enregistrées en Parquet")
+    write_joined_data(joined_df)
 
-    joined_df.write.mode("overwrite").option("header", True).csv("hdfs://namenode:9000/velib/aggregation/csvfile")
-    print("[joinData] Données enrichies enregistrées en CSV")
     print("[DEBUG] Aperçu des 20 lignes complètes après jointure :")
     joined_df.show(20, truncate=False)
 
+
+def main() -> None:
+    spark = SparkSession.builder.appName("JoinVelibData").getOrCreate()
+    aggregate_data(spark)
     spark.stop()
     print("[joinData] Traitement terminé")
 

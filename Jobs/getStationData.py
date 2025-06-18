@@ -14,6 +14,7 @@ def fetch_station_data():
 
     while True:
         url = f"{STATIONS_URL}?limit={LIMIT}&offset={offset}"
+        print(f"Récupération en cours : {url}")
         response = requests.get(url)
         response.raise_for_status()
         data = response.json().get("results", [])
@@ -23,11 +24,14 @@ def fetch_station_data():
             break
         offset += LIMIT
 
+    print(f"Total stations récupérées : {len(all_stations)}")
     return all_stations
 
 # ---------- TRANSFORM ----------
-def transform_station_data(records):
-    now = datetime.utcnow().isoformat()
+def transform_station_data(records, timestamp=None):
+    if timestamp is None:
+        timestamp = datetime.utcnow().isoformat()
+
     transformed = []
 
     for r in records:
@@ -39,19 +43,14 @@ def transform_station_data(records):
             "lon": coords.get("lon"),
             "lat": coords.get("lat"),
             "station_opening_hours": r.get("station_opening_hours"),
-            "timestamp": now
+            "timestamp": timestamp
         })
 
     return transformed
 
-# ---------- MAIN ----------
-def main():
-    spark = SparkSession.builder.appName("VelibStationIngestion").getOrCreate()
-
-    data = fetch_station_data()
-    rows = transform_station_data(data)
-
-    schema = StructType() \
+# ---------- SCHEMA ----------
+def get_velib_station_schema():
+    return StructType() \
         .add("stationcode", StringType()) \
         .add("name", StringType()) \
         .add("capacity", IntegerType()) \
@@ -60,13 +59,26 @@ def main():
         .add("station_opening_hours", StringType()) \
         .add("timestamp", StringType())
 
-    df = spark.createDataFrame(rows, schema=schema)
-    print(f"[getStationData] Nombre de stations récupérées : {df.count()}")
-    df.show(5)
-    df.write.mode("overwrite").parquet("hdfs://namenode:9000/velib/raw/stations")
+# ---------- WRITE ----------
+def write_to_hdfs(df, path, mode="overwrite"):
+    df.write.mode(mode).parquet(path)
 
-    print(" Stations enregistrées dans HDFS.")
-    spark.stop()
+# ---------- MAIN ----------
+def run_station_job():
+    spark = SparkSession.builder.appName("VelibStationIngestion").getOrCreate()
+    spark.conf.set("spark.hadoop.dfs.replication", "1")
+
+    try:
+        records = fetch_station_data()
+        rows = transform_station_data(records)
+        schema = get_velib_station_schema()
+        df = spark.createDataFrame(rows, schema=schema)
+        write_to_hdfs(df, "hdfs://namenode:9000/velib/raw/stations")
+        print("🚴 Données Vélib station écrites sur HDFS")
+    except Exception as e:
+        print(f"❌ Erreur lors de l'écriture dans HDFS : {e}")
+    finally:
+        spark.stop()
 
 if __name__ == "__main__":
-    main()
+    run_station_job()
