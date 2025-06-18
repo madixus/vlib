@@ -55,10 +55,12 @@ services:
     command: >
       bash -c "rm -f /opt/airflow/airflow-webserver.pid && airflow webserver"
     volumes:
-      - /c/Users/USER/Desktop/mspr/vlib/Jobs:/opt/airflow/Jobs
-      - /c/Users/USER/Desktop/mspr/vlib/Jobs:/opt/spark-jobs
-      - /c/Users/USER/Desktop/mspr/vlib/dags:/opt/airflow/dags
+      - ${LOCAL_JOBS_PATH}:/opt/airflow/Jobs
+      - ${LOCAL_JOBS_PATH}:/opt/spark-jobs
+      - ${LOCAL_DAGS_PATH}:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - .env
     networks:
       - my-network
 
@@ -79,9 +81,12 @@ services:
       _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-docker statsd
     command: scheduler
     volumes:
-      - /c/Users/USER/Desktop/mspr/vlib/Jobs:/opt/spark-jobs
-      - /c/Users/USER/Desktop/mspr/vlib/dags:/opt/airflow/dags
+      - ${LOCAL_JOBS_PATH}:/opt/airflow/Jobs
+      - ${LOCAL_JOBS_PATH}:/opt/spark-jobs
+      - ${LOCAL_DAGS_PATH}:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - .env
     networks:
       - my-network
 
