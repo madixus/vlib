@@ -1,6 +1,6 @@
-from airflow import DAG
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
-from airflow.sensors.external_task import ExternalTaskSensor
+from airflow import DAG # type: ignore
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator # type: ignore
+from airflow.sensors.external_task import ExternalTaskSensor # type: ignore
 from datetime import datetime, timedelta
 
 default_args = {

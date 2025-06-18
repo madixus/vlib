@@ -1,6 +1,16 @@
-from airflow import DAG
-from airflow.providers.docker.operators.docker import DockerOperator
+from airflow import DAG  # type: ignore
+from airflow.providers.docker.operators.docker import DockerOperator  # type: ignore
 from datetime import datetime, timedelta
+from docker.types import Mount  # type: ignore
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+local_jobs_path = os.getenv("LOCAL_JOBS_PATH")
+
+if not local_jobs_path:
+    raise ValueError("❌ La variable LOCAL_JOBS_PATH est manquante. Ajoutez-la dans le fichier .env")
 
 default_args = {
     'owner': 'airflow',
@@ -24,17 +34,16 @@ with DAG(
         api_version='auto',
         auto_remove=True,
         command='spark-submit --master spark://spark-master:7077 /opt/spark-jobs/getDataVelo.py',
-        docker_url="tcp://host.docker.internal:2375",  #  Pour Windows avec Docker Desktop (daemon exposé)
+        docker_url="tcp://host.docker.internal:2375",  # Pour Windows avec Docker Desktop
         network_mode='my-network',
         mount_tmp_dir=False,
         mounts=[
-            {
-                'source': 'C:/Users/USER/Desktop/mspr/vlib/Jobs',  # Met ton chemin absolu local ici
-                'target': '/opt/spark-jobs',
-                'type': 'bind'
-            }
+            Mount(
+                source=local_jobs_path,
+                target='/opt/spark-jobs',
+                type='bind'
+            )
         ]
     )
 
     run_getdata
-    
