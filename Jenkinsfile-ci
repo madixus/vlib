@@ -2,12 +2,6 @@ pipeline {
     agent any
 
     stages {
-        stage('Checkout') {
-            steps {
-                git branch: 'tests-dev', url: 'https://github.com/madixus/vlib'
-            }
-        }
-
         stage('Setup Python venv') {
             steps {
                 sh '''
