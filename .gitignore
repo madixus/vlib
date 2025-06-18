@@ -10,7 +10,7 @@ pytest.ini
 # Caches Python
 __pycache__/
 *.pyc
-
+#test
 # Cache de test
 Tests/unitaires/**/__pycache__/
 Jobs/__pycache__/
