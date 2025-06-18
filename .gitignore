@@ -14,6 +14,7 @@ __pycache__/
 # Cache de test
 Tests/unitaires/**/__pycache__/
 Jobs/__pycache__/
+Jobs/__init__.py
 
 # Autres trucs utiles
 *.log
@@ -21,3 +22,5 @@ Jobs/__pycache__/
 .venv/
 .idea/
 .DS_Store
+
+
