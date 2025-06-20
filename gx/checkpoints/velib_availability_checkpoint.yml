@@ -1,0 +1,13 @@
+name: velib_availability_checkpoint
+config_version: 1.0
+
+class_name: Checkpoint
+
+run_name_template: "%Y-%m-%d_%H-%M-%S"
+
+validations:
+  - batch_request:
+      datasource_name: hdfs_datasource
+      data_connector_name: default_inferred_data_connector_name
+      data_asset_name: availability  # remplace par ton nom réel de fichier/asset si différent
+    expectation_suite_name: availability_suite  # remplace par le nom réel de ton expectation suite
