@@ -14,7 +14,7 @@ def main():
     # Écrire les données dans un répertoire "final"
     output_path = "hdfs://namenode:9000/velib/final/data"
     df.write.mode("append").parquet(output_path)
-    print("\n✅ Données finales enregistrées dans HDFS.")
+    print("\n Données finales enregistrées dans HDFS.")
 
     spark.stop()
 

@@ -1,17 +1,20 @@
+version: '3.8'
+
 services:
   spark-master:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: spark-master
-    hostname: spark-master         # ✅ AJOUT ICI
+    hostname: spark-master
     environment:
       - SPARK_MODE=master
     ports:
-      - "8085:8080"
-      - "7077:7077"
+      - "8085:8080"  # Spark UI
+      - "7077:7077"  # Spark master port
     volumes:
       - /c/Users/USER/Desktop/mspr/vlib/Jobs:/opt/spark-jobs
+      - /c/Users/USER/Desktop/mspr/vlib/jars:/extra-jars
     networks:
       - my-network
 
@@ -19,15 +22,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: spark-worker
+    container_name: spark-workery
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
       - SPARK_PUBLIC_DNS=localhost
     ports:
-      - "8083:8081"
+      - "8083:8081"  # Worker UI
     depends_on:
       - spark-master
+    volumes:
+      - /c/Users/USER/Desktop/mspr/vlib/jars:/extra-jars  
     networks:
       - my-network
 
