@@ -6,14 +6,15 @@ docker/spark/.env
 # Fichiers de test
 pytest.ini
 .coverage
-
+# test
 # Caches Python
 __pycache__/
 *.pyc
-
+#test
 # Cache de test
 Tests/unitaires/**/__pycache__/
 Jobs/__pycache__/
+Jobs/__init__.py
 
 # Autres trucs utiles
 *.log
@@ -21,3 +22,5 @@ Jobs/__pycache__/
 .venv/
 .idea/
 .DS_Store
+
+
