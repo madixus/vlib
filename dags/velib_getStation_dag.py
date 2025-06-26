@@ -22,14 +22,14 @@ default_args = {
 with DAG(
     dag_id='velib_getStation_dag',
     default_args=default_args,
-    schedule_interval=None,  # ou '@daily'
+    schedule_interval="0 */72 * * *",
     catchup=False,
     description='DAG qui exécute getStationData.py dans le container Spark',
     tags=['velib', 'spark', 'docker'],
 ) as dag:
 
     run_getstationdata = DockerOperator(
-        task_id='run_spark_getSationData',
+        task_id='run_spark_getStation',
         image='my-spark-custom',
         api_version='auto',
         auto_remove=True,

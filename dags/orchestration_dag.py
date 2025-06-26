@@ -1,6 +1,6 @@
-from airflow import DAG # type: ignore
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator # type: ignore
-from airflow.sensors.external_task import ExternalTaskSensor # type: ignore
+from airflow import DAG  # type: ignore
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator  # type: ignore
+from airflow.sensors.external_task import ExternalTaskSensor  # type: ignore
 from datetime import datetime, timedelta
 
 default_args = {
@@ -11,14 +11,14 @@ default_args = {
 
 with DAG(
     dag_id="velib_master_dag",
-    description="Orchestre l'ensemble du pipeline Vélib (getdata, getstation, clean, aggregate, load)",
-    schedule_interval="*/20 * * * *",  # Toutes les 20 minutes
+    description="Orchestre l'ensemble du pipeline Vélib (getdata, getstation, clean, aggregate, load, load_postgres, validate)",
+    schedule_interval="*/20 * * * *",
     catchup=False,
     default_args=default_args,
     tags=["velib", "orchestration"]
 ) as dag:
 
-    # Déclenchement des DAGs initiaux
+    # --- Déclenchement des DAGs initiaux ---
     trigger_getdata = TriggerDagRunOperator(
         task_id="trigger_getdata",
         trigger_dag_id="velib_getdata_dag",
@@ -27,14 +27,38 @@ with DAG(
         wait_for_completion=False
     )
 
-    trigger_getstation = TriggerDagRunOperator(
-        task_id="trigger_getstation",
-        trigger_dag_id="velib_getStation_dag",
-        execution_date="{{ execution_date }}",
-        reset_dag_run=True,
-        wait_for_completion=False
+    # trigger_getstation = TriggerDagRunOperator(
+    #     task_id="trigger_getstation",
+    #     trigger_dag_id="velib_getStation_dag",
+    #     execution_date="{{ execution_date }}",
+    #     reset_dag_run=True,
+    #     wait_for_completion=False
+    # )
+
+    # --- Attente de fin des DAGs initiaux ---
+    wait_getdata = ExternalTaskSensor(
+        task_id="wait_getdata",
+        external_dag_id="velib_getdata_dag",
+        external_task_id="run_spark_getdata",
+        mode="poke",
+        poke_interval=60,
+        timeout=600,
+        allowed_states=["success"],
+        failed_states=["failed", "skipped"]
     )
 
+    # wait_getstation = ExternalTaskSensor(
+    #     task_id="wait_getstation",
+    #     external_dag_id="velib_getStation_dag",
+    #     external_task_id="run_spark_getStation",
+    #     mode="poke",
+    #     poke_interval=60,
+    #     timeout=600,
+    #     allowed_states=["success"],
+    #     failed_states=["failed", "skipped"]
+    # )
+
+    # --- Déclenchement du nettoyage ---
     trigger_clean = TriggerDagRunOperator(
         task_id="trigger_clean",
         trigger_dag_id="velib_clean_dag",
@@ -43,7 +67,6 @@ with DAG(
         wait_for_completion=False
     )
 
-    # Attente de la fin du nettoyage
     wait_clean = ExternalTaskSensor(
         task_id="wait_clean",
         external_dag_id="velib_clean_dag",
@@ -55,7 +78,7 @@ with DAG(
         failed_states=["failed", "skipped"]
     )
 
-    # Déclenchement de l'agrégation
+    # --- Agrégation ---
     trigger_aggregate = TriggerDagRunOperator(
         task_id="trigger_aggregate",
         trigger_dag_id="velib_aggregate_dag",
@@ -64,7 +87,6 @@ with DAG(
         wait_for_completion=False
     )
 
-    # Attente de l'agrégation
     wait_agg = ExternalTaskSensor(
         task_id="wait_agg",
         external_dag_id="velib_aggregate_dag",
@@ -76,7 +98,7 @@ with DAG(
         failed_states=["failed", "skipped"]
     )
 
-    # Déclenchement du chargement final
+    # --- Chargement dans HDFS ---
     trigger_load = TriggerDagRunOperator(
         task_id="trigger_load",
         trigger_dag_id="velib_load_dag",
@@ -85,7 +107,6 @@ with DAG(
         wait_for_completion=False
     )
 
-    # Attente de fin de chargement
     wait_load = ExternalTaskSensor(
         task_id="wait_load",
         external_dag_id="velib_load_dag",
@@ -97,6 +118,16 @@ with DAG(
         failed_states=["failed", "skipped"]
     )
 
+    # --- Chargement dans PostgreSQL ---
+    trigger_postgres_load = TriggerDagRunOperator(
+        task_id="trigger_postgres_load",
+        trigger_dag_id="velib_load_postgres_dag",
+        execution_date="{{ execution_date }}",
+        reset_dag_run=True,
+        wait_for_completion=False
+    )
+
+    # --- Validation finale ---
     trigger_validate = TriggerDagRunOperator(
         task_id="trigger_validation_dag",
         trigger_dag_id="velib_validate_dag",
@@ -105,6 +136,8 @@ with DAG(
         wait_for_completion=False
     )
 
-    [trigger_getdata, trigger_getstation, trigger_clean] >> wait_clean
+    # --- Orchestration complète ---
+    trigger_getdata >> wait_getdata
+    wait_getdata >> trigger_clean >> wait_clean
     wait_clean >> trigger_aggregate >> wait_agg
-    wait_agg >> trigger_load >> wait_load >> trigger_validate
+    wait_agg >> trigger_load >> wait_load >> trigger_postgres_load >> trigger_validate

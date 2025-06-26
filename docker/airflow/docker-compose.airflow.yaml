@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  postgres:
+  airflow-postgres:
     image: postgres:13
     container_name: airflow_postgres
     environment:
@@ -17,10 +17,11 @@ services:
     image: apache/airflow:2.8.0-python3.8
     container_name: airflow_init
     depends_on:
-      - postgres
+      airflow-postgres:
+        condition: service_started
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW__WEBSERVER__SECRET_KEY: 6c5e5d219c4d8d8fc26fd4c2b18cdd93c7858a1d4d1b2c20f3154bc4f3813be5
       _AIRFLOW_DB_UPGRADE: "true"
       _AIRFLOW_WWW_USER_CREATE: "true"
@@ -45,7 +46,7 @@ services:
       - airflow-init
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW__WEBSERVER__SECRET_KEY: 6c5e5d219c4d8d8fc26fd4c2b18cdd93c7858a1d4d1b2c20f3154bc4f3813be5
       AIRFLOW__METRICS__STATSD_ON: "true"
       AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
@@ -72,7 +73,7 @@ services:
       - airflow-webserver
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW__WEBSERVER__SECRET_KEY: 6c5e5d219c4d8d8fc26fd4c2b18cdd93c7858a1d4d1b2c20f3154bc4f3813be5
       AIRFLOW__METRICS__STATSD_ON: "true"
       AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
