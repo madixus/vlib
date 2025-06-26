@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  validator:
+    build:
+      context: ../../
+      dockerfile: docker/validation/Dockerfile
+    container_name: validator
+    environment:
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - HDFS_NAMENODE=hdfs://namenode:9000
+    networks:
+      - my-network
+    volumes:
+      - ../../validations:/app/validations   # montage du code source
+    working_dir: /app
+    command: ["python", "validations/run_validations.py"]
+
+networks:
+  my-network:
+    external: true
+    name: my-network

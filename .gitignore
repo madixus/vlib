@@ -6,7 +6,10 @@ docker/spark/.env
 # Fichiers de test
 pytest.ini
 .coverage
+<<<<<<< gx
+=======
 # test
+>>>>>>> develop
 # Caches Python
 __pycache__/
 *.pyc
