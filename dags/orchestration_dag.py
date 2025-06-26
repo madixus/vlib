@@ -97,7 +97,14 @@ with DAG(
         failed_states=["failed", "skipped"]
     )
 
-    # Orchestration complète
+    trigger_validate = TriggerDagRunOperator(
+        task_id="trigger_validation_dag",
+        trigger_dag_id="velib_validate_dag",
+        execution_date="{{ execution_date }}",
+        reset_dag_run=True,
+        wait_for_completion=False
+    )
+
     [trigger_getdata, trigger_getstation, trigger_clean] >> wait_clean
     wait_clean >> trigger_aggregate >> wait_agg
-    wait_agg >> trigger_load >> wait_load
+    wait_agg >> trigger_load >> wait_load >> trigger_validate
