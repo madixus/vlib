@@ -84,6 +84,20 @@ with DAG(
         mounts=[Mount(source=local_jobs_path, target='/opt/spark-jobs', type='bind')]
     )
 
-    # Dépendances
+    validate_postgres_data = DockerOperator(
+        task_id='validate_postgres_data',
+        image='my-spark-custom',
+        api_version='auto',
+        auto_remove=True,
+        command='spark-submit --master spark://spark-master:7077 /opt/spark-jobs/validate_postgres_data.py',
+        docker_url="tcp://host.docker.internal:2375",
+        network_mode='my-network',
+        mount_tmp_dir=False,
+        mounts=[Mount(source=local_jobs_path, target='/opt/spark-jobs', type='bind')]
+    )
+
+        # Dépendances
     [validate_availability, validate_stations] >> validate_cleaned_data
     validate_cleaned_data >> validate_aggregate_data >> validate_loaded_data
+    validate_loaded_data >> validate_postgres_data
+
