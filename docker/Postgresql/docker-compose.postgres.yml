@@ -53,4 +53,5 @@ volumes:
 
 networks:
   my-network:
-    external: false
+    external: true
+    name: my-network

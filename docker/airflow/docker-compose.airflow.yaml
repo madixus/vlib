@@ -37,7 +37,10 @@ services:
       - my-network
 
   airflow-webserver:
-    image: apache/airflow:2.8.0-python3.8
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow   # ✅ Utilise ton image customisée
+    image: custom-airflow:2.8.0        # ✅ Nom de l’image custom
     container_name: airflow_web
     restart: always
     ports:
@@ -52,9 +55,9 @@ services:
       AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
       AIRFLOW__METRICS__STATSD_PORT: 9125
       AIRFLOW__METRICS__STATSD_PREFIX: airflow
-      _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-docker statsd
     command: >
       bash -c "rm -f /opt/airflow/airflow-webserver.pid && airflow webserver"
+    user: "0:0"
     volumes:
       - ${LOCAL_JOBS_PATH}:/opt/airflow/Jobs
       - ${LOCAL_JOBS_PATH}:/opt/spark-jobs
@@ -66,7 +69,10 @@ services:
       - my-network
 
   airflow-scheduler:
-    image: apache/airflow:2.8.0-python3.8
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow   # ✅ Même image que le webserver
+    image: custom-airflow:2.8.0
     container_name: airflow_scheduler
     restart: always
     depends_on:
@@ -79,8 +85,8 @@ services:
       AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
       AIRFLOW__METRICS__STATSD_PORT: 9125
       AIRFLOW__METRICS__STATSD_PREFIX: airflow
-      _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-docker statsd
     command: scheduler
+    user: "0:0"
     volumes:
       - ${LOCAL_JOBS_PATH}:/opt/airflow/Jobs
       - ${LOCAL_JOBS_PATH}:/opt/spark-jobs

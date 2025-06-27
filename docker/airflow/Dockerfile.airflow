@@ -1,0 +1,7 @@
+# Dockerfile.airflow
+FROM apache/airflow:2.8.0-python3.8
+
+USER airflow
+
+# Installe les providers en tant qu'utilisateur airflow (obligatoire)
+RUN pip install --no-cache-dir apache-airflow-providers-docker statsd
