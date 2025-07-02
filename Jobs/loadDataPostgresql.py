@@ -13,30 +13,50 @@ def main():
         .config("spark.jars", "/extra-jars/postgresql-42.7.5.jar") \
         .getOrCreate()
 
+    # Couper les logs Spark trop verbeux
+    spark.sparkContext.setLogLevel("WARN")
+
     input_path = "hdfs://namenode:9000/velib/final/data"
     df_raw = spark.read.parquet(input_path)
     logger.info(f"📦 {df_raw.count()} lignes lues depuis HDFS")
 
-    # === Connexion PostgreSQL
+    # === Connexion PostgreSQL ===
     url = "jdbc:postgresql://postgres:5432/vlib"
     props = {"user": "vlib", "password": "vlib", "driver": "org.postgresql.Driver"}
 
-    # === Filtrage des lignes déjà insérées dans dim_time
-    try:
-        logger.info("🔍 Lecture des clés existantes dans dim_time")
-        dim_time_pg = spark.read.jdbc(url=url, table="dim_time", properties=props).select("event_ts")
-        event_ts_existants = [row["event_ts"] for row in dim_time_pg.collect()]
-        df_raw = df_raw.filter(~col("event_ts").isin(event_ts_existants))
-        logger.info(f"✅ Filtrage : {df_raw.count()} lignes restantes après exclusion des doublons")
-    except Exception as e:
-        logger.warning(f"⚠️ Impossible de lire dim_time : {e}. Insertion complète prévue.")
+    # Charger en mémoire les existants
+    logger.info("🔍 Lecture des existants en base")
+    dim_station_pg = spark.read.jdbc(url=url, table="dim_station", properties=props) \
+                             .select("stationcode")
+    dim_time_pg    = spark.read.jdbc(url=url, table="dim_time",    properties=props) \
+                             .select("event_ts")
+    fact_pg        = spark.read.jdbc(url=url, table="fact_velib",  properties=props) \
+                             .select("stationcode","event_ts")
 
-    # === Tables transformées
-    dim_station = df_raw.select(
+    # === Préparer dim_station (nouvelles stations uniquement) ===
+    dim_station_new = df_raw.select(
         "stationcode", "name", "lat", "lon", "arrondissement", "capacity", "station_opening_hours"
-    ).dropDuplicates(["stationcode"])
+    ).dropDuplicates(["stationcode"]) \
+     .join(dim_station_pg, on="stationcode", how="left_anti")
 
-    dim_time = df_raw.select("event_ts").dropDuplicates() \
+    logger.info(f"✅ {dim_station_new.count()} nouvelles stations à insérer")
+
+    # === Écrire dim_station avant tout ===
+    try:
+        logger.info("💾 Insertion dim_station → PostgreSQL")
+        dim_station_new.write.jdbc(url=url, table="dim_station", mode="append", properties=props)
+    except Exception as e:
+        logger.error(f"❌ Erreur inserting dim_station: {e}")
+
+    # === Préparer dim_time (nouveaux timestamps uniquement) ===
+    df_time_new = df_raw.select("event_ts") \
+        .dropDuplicates() \
+        .join(dim_time_pg, on="event_ts", how="left_anti")
+
+    logger.info(f"✅ {df_time_new.count()} nouveaux timestamps à insérer")
+
+    # === Construire la dimension temps ===
+    dim_time_new = df_time_new \
         .withColumn("year", year("event_ts")) \
         .withColumn("month", month("event_ts")) \
         .withColumn("day", dayofmonth("event_ts")) \
@@ -44,32 +64,29 @@ def main():
         .withColumn("minute", minute("event_ts")) \
         .withColumn("second", second("event_ts"))
 
-    fact_velib = df_raw.select(
-        "event_ts", "stationcode", "num_bikes_available", "num_docks_available",
+    # === Écrire dim_time ===
+    try:
+        logger.info("💾 Insertion dim_time → PostgreSQL")
+        dim_time_new.write.jdbc(url=url, table="dim_time", mode="append", properties=props)
+    except Exception as e:
+        logger.error(f"❌ Erreur inserting dim_time: {e}")
+
+    # === Préparer fact_velib (faits nouveaux et cohérents FK) ===
+    fact_velib_new = df_raw.select(
+        "stationcode", "event_ts", "num_bikes_available", "num_docks_available",
         "mechanical", "ebike", "is_installed", "is_renting", "is_returning",
         "capacity", "aggregation_timestamp"
-    ).dropDuplicates(["event_ts", "stationcode"])
+    ).dropDuplicates(["stationcode", "event_ts"]) \
+     .join(fact_pg, on=["stationcode","event_ts"], how="left_anti")
 
-    logger.info(f"🛠 fact_velib générée : {fact_velib.count()} lignes")
+    logger.info(f"✅ {fact_velib_new.count()} nouveaux faits à insérer")
 
-    # === Écritures conditionnelles
+    # === Écrire fact_velib ===
     try:
-        logger.info("💾 dim_station → PostgreSQL")
-        dim_station.write.jdbc(url=url, table="dim_station", mode="append", properties=props)
+        logger.info("💾 Insertion fact_velib → PostgreSQL")
+        fact_velib_new.write.jdbc(url=url, table="fact_velib", mode="append", properties=props)
     except Exception as e:
-        logger.warning(f"⚠️ dim_station non insérée : {e}")
-
-    try:
-        logger.info("💾 dim_time → PostgreSQL")
-        dim_time.write.jdbc(url=url, table="dim_time", mode="append", properties=props)
-    except Exception as e:
-        logger.warning(f"⚠️ dim_time non insérée : {e}")
-
-    try:
-        logger.info("💾 fact_velib → PostgreSQL")
-        fact_velib.write.jdbc(url=url, table="fact_velib", mode="append", properties=props)
-    except Exception as e:
-        logger.error(f"❌ fact_velib non insérée : {e}")
+        logger.error(f"❌ Erreur inserting fact_velib: {e}")
 
     spark.stop()
     logger.info("🏁 Fin du job Spark")
