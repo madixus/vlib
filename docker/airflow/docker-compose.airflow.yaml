@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  postgres:
+  airflow-postgres:
     image: postgres:13
     container_name: airflow_postgres
     environment:
@@ -17,10 +17,11 @@ services:
     image: apache/airflow:2.8.0-python3.8
     container_name: airflow_init
     depends_on:
-      - postgres
+      airflow-postgres:
+        condition: service_started
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW__WEBSERVER__SECRET_KEY: 6c5e5d219c4d8d8fc26fd4c2b18cdd93c7858a1d4d1b2c20f3154bc4f3813be5
       _AIRFLOW_DB_UPGRADE: "true"
       _AIRFLOW_WWW_USER_CREATE: "true"
@@ -36,7 +37,10 @@ services:
       - my-network
 
   airflow-webserver:
-    image: apache/airflow:2.8.0-python3.8
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow   # ✅ Utilise ton image customisée
+    image: custom-airflow:2.8.0        # ✅ Nom de l’image custom
     container_name: airflow_web
     restart: always
     ports:
@@ -45,15 +49,15 @@ services:
       - airflow-init
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW__WEBSERVER__SECRET_KEY: 6c5e5d219c4d8d8fc26fd4c2b18cdd93c7858a1d4d1b2c20f3154bc4f3813be5
       AIRFLOW__METRICS__STATSD_ON: "true"
       AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
       AIRFLOW__METRICS__STATSD_PORT: 9125
       AIRFLOW__METRICS__STATSD_PREFIX: airflow
-      _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-docker statsd
     command: >
       bash -c "rm -f /opt/airflow/airflow-webserver.pid && airflow webserver"
+    user: "0:0"
     volumes:
       - ${LOCAL_JOBS_PATH}:/opt/airflow/Jobs
       - ${LOCAL_JOBS_PATH}:/opt/spark-jobs
@@ -65,21 +69,24 @@ services:
       - my-network
 
   airflow-scheduler:
-    image: apache/airflow:2.8.0-python3.8
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow   # ✅ Même image que le webserver
+    image: custom-airflow:2.8.0
     container_name: airflow_scheduler
     restart: always
     depends_on:
       - airflow-webserver
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       AIRFLOW__WEBSERVER__SECRET_KEY: 6c5e5d219c4d8d8fc26fd4c2b18cdd93c7858a1d4d1b2c20f3154bc4f3813be5
       AIRFLOW__METRICS__STATSD_ON: "true"
       AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
       AIRFLOW__METRICS__STATSD_PORT: 9125
       AIRFLOW__METRICS__STATSD_PREFIX: airflow
-      _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-docker statsd
     command: scheduler
+    user: "0:0"
     volumes:
       - ${LOCAL_JOBS_PATH}:/opt/airflow/Jobs
       - ${LOCAL_JOBS_PATH}:/opt/spark-jobs

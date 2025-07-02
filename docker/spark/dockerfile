@@ -2,10 +2,11 @@ FROM bitnami/spark:3.3
 
 USER root
 
-# Installer pip et la lib requests
+# Installer pip, requests et le driver JDBC PostgreSQL
 RUN apt-get update && \
-    apt-get install -y python3-pip && \
+    apt-get install -y python3-pip wget && \
     pip3 install --no-cache-dir requests && \
+    wget https://jdbc.postgresql.org/download/postgresql-42.2.27.jar -P /opt/spark/jars/ && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
