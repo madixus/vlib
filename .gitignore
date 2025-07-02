@@ -1,0 +1,23 @@
+# Fichiers d'environnement
+.env
+docker/airflow/.env
+docker/spark/.env
+
+# Fichiers de test
+pytest.ini
+.coverage
+
+# Caches Python
+__pycache__/
+*.pyc
+
+# Cache de test
+Tests/unitaires/**/__pycache__/
+Jobs/__pycache__/
+
+# Autres trucs utiles
+*.log
+*.egg-info/
+.venv/
+.idea/
+.DS_Store

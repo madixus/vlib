@@ -1,8 +1,17 @@
-from airflow import DAG
-from airflow.providers.docker.operators.docker import DockerOperator
-from airflow.sensors.external_task import ExternalTaskSensor
+from airflow import DAG # type: ignore
+from airflow.providers.docker.operators.docker import DockerOperator # type: ignore
+from airflow.sensors.external_task import ExternalTaskSensor # type: ignore
 from datetime import datetime, timedelta
-from docker.types import Mount
+from docker.types import Mount # type: ignore
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+local_jobs_path = os.getenv("LOCAL_JOBS_PATH")
+
+if not local_jobs_path:
+    raise ValueError("❌ La variable LOCAL_JOBS_PATH est manquante. Ajoutez-la dans le fichier .env")
 
 default_args = {
     'start_date': datetime(2024, 1, 1),
@@ -39,7 +48,7 @@ with DAG(
         mount_tmp_dir=False,
         mounts=[
             Mount(
-                source='/c/Users/USER/Desktop/mspr/vlib/Jobs',
+                source=local_jobs_path,
                 target='/opt/spark-jobs',
                 type='bind'
             )

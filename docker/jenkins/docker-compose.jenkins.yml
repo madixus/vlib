@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jenkins
+    ports:
+      - "8089:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - my-network
+
+volumes:
+  jenkins_home:
+
+networks:
+  my-network:
+    external: true
+    name: my-network
