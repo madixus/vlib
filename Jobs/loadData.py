@@ -11,7 +11,7 @@ def read_aggregated_data(spark: SparkSession):
 def write_final_data(df):
     output_path = "hdfs://namenode:9000/velib/final/data"
     df.write.mode("append").parquet(output_path)
-    print("\n✅ Données finales enregistrées dans HDFS.")
+    print("\n Données finales enregistrées dans HDFS.")
 
 def main():
     spark = SparkSession.builder.appName("LoadVelibData").getOrCreate()

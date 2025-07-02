@@ -6,12 +6,14 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: spark-master
-    hostname: spark-master         
+
+    hostname: spark-master
+
     environment:
       - SPARK_MODE=master
     ports:
-      - "8085:8080"
-      - "7077:7077"
+      - "8085:8080"  # Spark UI
+      - "7077:7077"  # Spark master port
     volumes:
       - ${LOCAL_JOBS_PATH}:/opt/spark-jobs
     env_file:
@@ -23,15 +25,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: spark-worker
+    container_name: spark-workery
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
       - SPARK_PUBLIC_DNS=localhost
     ports:
-      - "8083:8081"
+      - "8083:8081"  # Worker UI
     depends_on:
       - spark-master
+
     env_file:
       - .env
     networks:

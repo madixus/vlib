@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: vlib-postgres
+    environment:
+      POSTGRES_DB: vlib
+      POSTGRES_USER: vlib
+      POSTGRES_PASSWORD: vlib
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - my-network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: vlib-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@vlib.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8099:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - my-network
+
+  metabase:
+    image: metabase/metabase
+    container_name: vlib-metabase
+    ports:
+      - "3010:3000"
+    depends_on:
+      - postgres
+    networks:
+      - my-network
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: vlib
+      MB_DB_PORT: 5432
+      MB_DB_USER: vlib
+      MB_DB_PASS: vlib
+      MB_DB_HOST: postgres
+
+volumes:
+  pgdata:
+  pgadmin-data:
+
+networks:
+  my-network:
+    external: true
